@@ -3,25 +3,32 @@ const pool = require('../config/db');
 // GET /api/users/profile
 const getProfile = async (req, res) => {
   try {
+    // FIX: Use subqueries instead of double LEFT JOIN to avoid cross-product
+    // that causes json_agg to produce duplicate entries even with DISTINCT
     const result = await pool.query(
       `SELECT u.*,
-        COALESCE(json_agg(DISTINCT jsonb_build_object(
-          'service_id', es.service_id,
-          'title', s.title,
-          'proficiency', es.proficiency
-        )) FILTER (WHERE es.service_id IS NOT NULL), '[]') AS known_services,
-        COALESCE(json_agg(DISTINCT jsonb_build_object(
-          'service_id', li.service_id,
-          'title', ls.title,
-          'status', li.status
-        )) FILTER (WHERE li.service_id IS NOT NULL), '[]') AS learning_interests
+        (
+          SELECT COALESCE(json_agg(DISTINCT jsonb_build_object(
+            'service_id', es.service_id,
+            'title', s.title,
+            'proficiency', es.proficiency
+          )), '[]'::json)
+          FROM employee_services es
+          JOIN services s ON es.service_id = s.id
+          WHERE es.firebase_uid = u.firebase_uid
+        ) AS known_services,
+        (
+          SELECT COALESCE(json_agg(DISTINCT jsonb_build_object(
+            'service_id', li.service_id,
+            'title', ls.title,
+            'status', li.status
+          )), '[]'::json)
+          FROM learning_interests li
+          JOIN services ls ON li.service_id = ls.id
+          WHERE li.firebase_uid = u.firebase_uid
+        ) AS learning_interests
        FROM users u
-       LEFT JOIN employee_services es ON u.firebase_uid = es.firebase_uid
-       LEFT JOIN services s  ON es.service_id = s.id
-       LEFT JOIN learning_interests li ON u.firebase_uid = li.firebase_uid
-       LEFT JOIN services ls ON li.service_id = ls.id
-       WHERE u.firebase_uid = $1
-       GROUP BY u.id`,
+       WHERE u.firebase_uid = $1`,
       [req.user.uid]
     );
 

@@ -1,16 +1,27 @@
 const express = require('express');
-const router = express.Router();
-const {
-  getAllEmployees, getEmployeeByUid,
-  addEmployeeService, removeEmployeeService,
-} = require('../controllers/employeeController');
+const router  = express.Router();
 const { verifyToken } = require('../middleware/authMiddleware');
+const {
+  getAllEmployees,
+  getEmployeeByUid,
+  addEmployeeService,
+  addCustomSkill,
+  removeEmployeeService,
+} = require('../controllers/employeeController');
 
-router.use(verifyToken);
+// GET  /api/employees
+router.get('/',              verifyToken, getAllEmployees);
 
-router.get('/',                      getAllEmployees);
-router.get('/:uid',                  getEmployeeByUid);
-router.post('/services',             addEmployeeService);
-router.delete('/services/:serviceId', removeEmployeeService);
+// GET  /api/employees/:uid
+router.get('/:uid',          verifyToken, getEmployeeByUid);
+
+// POST /api/employees/services         — add existing service by service_id
+router.post('/services',     verifyToken, addEmployeeService);
+
+// POST /api/employees/services/custom  — create new service + add to profile
+router.post('/services/custom', verifyToken, addCustomSkill);
+
+// DELETE /api/employees/services/:serviceId
+router.delete('/services/:serviceId', verifyToken, removeEmployeeService);
 
 module.exports = router;

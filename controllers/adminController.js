@@ -11,8 +11,9 @@ const getDashboardStats = async (req, res) => {
       pool.query('SELECT COUNT(*) FROM learning_interests'),
     ]);
 
+    // Top wanted — GROUP BY s.id to avoid duplicates
     const topWanted = await pool.query(
-      `SELECT s.title, COUNT(li.firebase_uid) AS interest_count
+      `SELECT s.id, s.title, COUNT(li.firebase_uid) AS interest_count
        FROM learning_interests li
        JOIN services s ON li.service_id = s.id
        GROUP BY s.id, s.title
@@ -20,26 +21,27 @@ const getDashboardStats = async (req, res) => {
        LIMIT 5`
     );
 
-    // ✅ FIXED: DISTINCT add kiya — duplicate services nahi aayengi
-    // ✅ FIXED: expert proficiency check — sirf tab skill gap jab koi expert na ho
-    const skillGap = await pool.query(
-      `SELECT DISTINCT s.id, s.title
+    // Kitne employees jaante hain har service ko
+    const serviceExpertCounts = await pool.query(
+      `SELECT
+         s.id,
+         s.title,
+         COUNT(es.firebase_uid) AS total_knows
        FROM services s
-       LEFT JOIN employee_services es
-         ON s.id = es.service_id AND es.proficiency = 'expert'
-       WHERE es.id IS NULL
-       ORDER BY s.title`
+       LEFT JOIN employee_services es ON s.id = es.service_id
+       GROUP BY s.id, s.title
+       ORDER BY total_knows DESC, s.title ASC`
     );
 
     res.json({
       success: true,
       stats: {
-        total_employees:      parseInt(employees.rows[0].count),
-        total_services:       parseInt(services.rows[0].count),
-        total_resources:      parseInt(resources.rows[0].count),
-        total_learning_marks: parseInt(learningInterests.rows[0].count),
-        top_wanted_services:  topWanted.rows,
-        skill_gaps:           skillGap.rows,
+        total_employees:       parseInt(employees.rows[0].count),
+        total_services:        parseInt(services.rows[0].count),
+        total_resources:       parseInt(resources.rows[0].count),
+        total_learning_marks:  parseInt(learningInterests.rows[0].count),
+        top_wanted_services:   topWanted.rows,
+        service_expert_counts: serviceExpertCounts.rows,
       },
     });
   } catch (err) {
@@ -73,11 +75,9 @@ const updateUserRole = async (req, res) => {
       'UPDATE users SET role = $1, updated_at = CURRENT_TIMESTAMP WHERE firebase_uid = $2 RETURNING *',
       [role, uid]
     );
-
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-
     res.json({ success: true, user: result.rows[0] });
   } catch (err) {
     console.error('updateUserRole error:', err.message);
@@ -85,14 +85,10 @@ const updateUserRole = async (req, res) => {
   }
 };
 
-// PUT /api/admin/users/:uid/profile — admin kisi bhi employee ka profile update kar sake
+// PUT /api/admin/users/:uid/profile
 const updateUserProfile = async (req, res) => {
   const { uid } = req.params;
   const { full_name, designation, department, phone } = req.body;
-
-  if (!full_name && !designation && !department && !phone) {
-    return res.status(400).json({ success: false, message: 'Koi bhi field update ke liye nahi di' });
-  }
 
   try {
     const result = await pool.query(
@@ -105,19 +101,11 @@ const updateUserProfile = async (req, res) => {
          updated_at  = CURRENT_TIMESTAMP
        WHERE firebase_uid = $5
        RETURNING *`,
-      [
-        full_name   || null,
-        designation || null,
-        department  || null,
-        phone       || null,
-        uid,
-      ]
+      [full_name || null, designation || null, department || null, phone || null, uid]
     );
-
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-
     res.json({ success: true, user: result.rows[0] });
   } catch (err) {
     console.error('updateUserProfile error:', err.message);
@@ -125,10 +113,9 @@ const updateUserProfile = async (req, res) => {
   }
 };
 
-// DELETE /api/admin/users/:uid — Firebase Auth + PostgreSQL dono se delete
+// DELETE /api/admin/users/:uid
 const deleteUser = async (req, res) => {
   const { uid } = req.params;
-
   try {
     try {
       await admin.auth().deleteUser(uid);
@@ -137,11 +124,8 @@ const deleteUser = async (req, res) => {
         console.error('Firebase Auth delete error:', firebaseErr.message);
         return res.status(500).json({ success: false, message: 'Firebase delete failed' });
       }
-      console.warn(`Firebase user ${uid} not found — skipping Auth delete`);
     }
-
     await pool.query('DELETE FROM users WHERE firebase_uid = $1', [uid]);
-
     res.json({ success: true, message: 'User deleted from Auth and database' });
   } catch (err) {
     console.error('deleteUser error:', err.message);
