@@ -20,12 +20,15 @@ const getDashboardStats = async (req, res) => {
        LIMIT 5`
     );
 
+    // ✅ FIXED: DISTINCT add kiya — duplicate services nahi aayengi
+    // ✅ FIXED: expert proficiency check — sirf tab skill gap jab koi expert na ho
     const skillGap = await pool.query(
-      `SELECT s.title
+      `SELECT DISTINCT s.id, s.title
        FROM services s
-       LEFT JOIN employee_services es ON s.id = es.service_id
-       GROUP BY s.id, s.title
-       HAVING COUNT(es.firebase_uid) = 0`
+       LEFT JOIN employee_services es
+         ON s.id = es.service_id AND es.proficiency = 'expert'
+       WHERE es.id IS NULL
+       ORDER BY s.title`
     );
 
     res.json({
@@ -150,6 +153,6 @@ module.exports = {
   getDashboardStats,
   getAllUsers,
   updateUserRole,
-  updateUserProfile, // ← naya add hua
+  updateUserProfile,
   deleteUser,
 };
