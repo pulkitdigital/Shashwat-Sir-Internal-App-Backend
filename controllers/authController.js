@@ -39,18 +39,19 @@ const getMe = async (req, res) => {
       [req.user.uid]
     );
 
-    // ✅ User DB mein nahi hai — Firebase token se auto-create karo
-    // Yeh tab hota hai jab register API call fail ho gayi ho ya purana account ho
     if (result.rows.length === 0) {
       console.log(`Auto-creating DB record for Firebase user: ${req.user.uid}`);
       result = await pool.query(
         `INSERT INTO users (firebase_uid, email, full_name)
          VALUES ($1, $2, $3)
+         ON CONFLICT (email) DO UPDATE
+           SET firebase_uid = EXCLUDED.firebase_uid,
+               updated_at   = CURRENT_TIMESTAMP
          RETURNING *`,
         [
           req.user.uid,
           req.user.email,
-          req.user.name || req.user.email.split('@')[0], // fallback: email se naam lo
+          req.user.name || req.user.email.split('@')[0],
         ]
       );
     }
