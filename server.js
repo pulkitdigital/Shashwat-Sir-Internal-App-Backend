@@ -24,8 +24,10 @@ app.use('/api/resources', require('./routes/resourceRoutes'));
 app.use('/api/admin',     require('./routes/adminRoutes'));
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
+// Frontend start hote hi yahan ping aata hai — Render cold start fix
+// Koi auth nahi chahiye — public route hai
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'CA Firm API is running' });
+  res.status(200).json({ status: 'OK', message: 'CA Firm API is running 🚀' });
 });
 
 // ─── 404 Handler ──────────────────────────────────────────────────────────────
@@ -46,4 +48,4 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
-}); 
+});
