@@ -21,6 +21,7 @@
 backend/
 ├── server.js                    # Entry point — Express app + route mounting
 ├── package.json
+├── seedAdmin.js                 # Script to seed admin user
 ├── .env                         # Secret keys (never commit)
 ├── .env.example                 # Template for .env
 │
@@ -38,19 +39,22 @@ backend/
 │   ├── authController.js        # registerUser, getMe
 │   ├── userController.js        # getProfile, updateProfile
 │   ├── serviceController.js     # CRUD for services
-│   ├── employeeController.js    # Employee directory + skill management
+│   ├── employeeController.js    # Employee directory + skill 
 │   ├── learningController.js    # Learning interests
 │   ├── resourceController.js    # Resources / lecture links
 │   └── adminController.js       # Stats, user management
 │
-└── routes/
-    ├── authRoutes.js
-    ├── userRoutes.js
-    ├── serviceRoutes.js
-    ├── employeeRoutes.js
-    ├── learningRoutes.js
-    ├── resourceRoutes.js
-    └── adminRoutes.js
+├── routes/
+│   ├── authRoutes.js
+│   ├── userRoutes.js
+│   ├── serviceRoutes.js
+│   ├── employeeRoutes.js
+│   ├── learningRoutes.js
+│   ├── resourceRoutes.js
+│   └── adminRoutes.js
+│
+└── utils/
+    └── driveUpload.js           # Google Drive upload utility
 ```
 
 ---
