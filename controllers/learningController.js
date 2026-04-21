@@ -104,4 +104,50 @@ const removeLearningInterest = async (req, res) => {
   }
 };
 
-module.exports = { getMyLearning, getAllLearning, addLearningInterest, updateLearningStatus, removeLearningInterest };
+// POST /learning/custom — { title }
+const addCustomLearning = async (req, res) => {
+  const { title } = req.body;
+  const firebase_uid = req.user.uid;
+
+  if (!title?.trim()) {
+    return res.status(400).json({ error: "Title is required" });
+  }
+
+  try {
+    // Pehle check karo: kya is title ka service already exist karta hai?
+    let serviceResult = await pool.query(
+      `SELECT id FROM services WHERE LOWER(title) = LOWER($1) LIMIT 1`,
+      [title.trim()]
+    );
+
+    let service_id;
+
+    if (serviceResult.rows.length > 0) {
+      // Service exist karti hai — use karo
+      service_id = serviceResult.rows[0].id;
+    } else {
+      // Nahi hai — create karo
+      const newService = await pool.query(
+        `INSERT INTO services (title, created_by) VALUES ($1, $2) RETURNING id`,
+        [title.trim(), firebase_uid]
+      );
+      service_id = newService.rows[0].id;
+    }
+
+    // Ab learning interest add karo (duplicate ignore)
+    await pool.query(
+      `INSERT INTO learning_interests (firebase_uid, service_id, status)
+       VALUES ($1, $2, 'interested')
+       ON CONFLICT (firebase_uid, service_id) DO NOTHING`,
+      [firebase_uid, service_id]
+    );
+
+    res.status(201).json({ message: "Added to learning interests", service_id });
+  } catch (err) {
+    console.error("addCustomLearning error:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+
+module.exports = { getMyLearning, getAllLearning, addCustomLearning, addLearningInterest, updateLearningStatus, removeLearningInterest };

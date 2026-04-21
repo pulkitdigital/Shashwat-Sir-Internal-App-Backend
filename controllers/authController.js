@@ -1,7 +1,7 @@
 const pool = require('../config/db');
+const admin = require('../config/firebase'); // Firebase Admin SDK
 
 // POST /api/auth/register
-// Called after Firebase signup — saves user to PostgreSQL
 const registerUser = async (req, res) => {
   const { firebase_uid, email, full_name, designation, department, phone } = req.body;
 
@@ -10,7 +10,6 @@ const registerUser = async (req, res) => {
   }
 
   try {
-    // Upsert: insert or update if already exists
     const result = await pool.query(
       `INSERT INTO users (firebase_uid, email, full_name, designation, department, phone)
        VALUES ($1, $2, $3, $4, $5, $6)
@@ -30,8 +29,6 @@ const registerUser = async (req, res) => {
 };
 
 // GET /api/auth/me
-// Returns current user's DB profile
-// ✅ Auto-creates user in PostgreSQL if Firebase user exists but DB record missing
 const getMe = async (req, res) => {
   try {
     let result = await pool.query(
@@ -63,4 +60,66 @@ const getMe = async (req, res) => {
   }
 };
 
-module.exports = { registerUser, getMe };
+// POST /api/auth/check-email
+// Step 1 — Check if email exists in DB
+const checkEmail = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ success: false, message: 'Email is required' });
+  }
+
+  try {
+    const result = await pool.query(
+      'SELECT firebase_uid, full_name FROM users WHERE email = $1',
+      [email.toLowerCase().trim()]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'No account found with this email.' });
+    }
+
+    res.json({ success: true, message: 'Email found.' });
+  } catch (err) {
+    console.error('checkEmail error:', err.message);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// PUT /api/auth/reset-password
+// Step 2 — Reset password directly via Firebase Admin SDK
+const resetPassword = async (req, res) => {
+  const { email, newPassword } = req.body;
+
+  if (!email || !newPassword) {
+    return res.status(400).json({ success: false, message: 'Email and new password are required.' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ success: false, message: 'Password must be at least 6 characters.' });
+  }
+
+  try {
+    // Check email exists in DB
+    const result = await pool.query(
+      'SELECT firebase_uid FROM users WHERE email = $1',
+      [email.toLowerCase().trim()]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'No account found with this email.' });
+    }
+
+    const { firebase_uid } = result.rows[0];
+
+    // Update password in Firebase using Admin SDK
+    await admin.auth().updateUser(firebase_uid, { password: newPassword });
+
+    res.json({ success: true, message: 'Password updated successfully.' });
+  } catch (err) {
+    console.error('resetPassword error:', err.message);
+    res.status(500).json({ success: false, message: 'Failed to reset password. Please try again.' });
+  }
+};
+
+module.exports = { registerUser, getMe, checkEmail, resetPassword };
